@@ -1,0 +1,7 @@
+.git
+.Rproj.user
+.Rhistory
+.RData
+renv/library
+**/__pycache__
+*.log
