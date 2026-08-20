@@ -1,0 +1,3 @@
+# No reverse proxy in front of Shiny — Cloudflare edge only
+
+The public app (spatialbrain.org) is served directly from Shiny Server on origin port 3838 with Cloudflare as the only front; there is deliberately no nginx/traefik layer in front of it. Cloudflare already provides TLS, HTTP/2/3, compression, and static edge caching, and a proxy hop would add latency without adding capability. The decision is contingent on the origin HTML staying user-independent (no auth, no session tokens in HTML) so it remains edge-cacheable. Revisit if the app ever needs origin-side caching, rate limiting, or a second origin.
