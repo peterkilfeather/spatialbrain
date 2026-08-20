@@ -2,7 +2,7 @@ splicing_UI <- function(id) {
   ns <- NS(id)
   tabPanel(
     "Alternative Splicing in Dopaminergic Neurons",
-    titlePanel(h1("Dopaminergic Splicing", align = 'center')),
+    titlePanel(h1("Alternative Splicing in Dopaminergic Neurons", align = 'center')),
     br(),
     fluidRow(column(
       width = 6,
@@ -41,6 +41,9 @@ splicing_UI <- function(id) {
         3,
         h4(helpText("Download Data")),
         hr(),
+        radioButtons(ns("plot_format"), "Plot format",
+          choices = c("PNG (300 dpi)" = "png", "SVG" = "svg", "PDF" = "pdf"),
+          inline = TRUE, selected = "png"),
         p(class = 'text-center', downloadButton(
           ns('download_table'), 'Download Splicing Table'
         )),
@@ -162,17 +165,10 @@ splicing_SERVER <- function(id) {
     
     output$download_plot <- downloadHandler(
       filename = function() {
-        paste0("Splicing Plot - ", splicing_vars$selected_gene, ".png")
+        paste0("Splicing Plot - ", splicing_vars$selected_gene, ".", input$plot_format)
       },
       content = function(file) {
-        ggsave(file, plot_splicing_func(),
-               width = 800,
-               height = 800/1.5,
-               # width = input$plot_size,
-               # height = (input$plot_size)/1.5,
-               units = "px",
-               dpi = 72,
-               bg = "white")
+        export_plot(file, plot_splicing_func(), input$plot_format)
       }
     )
     

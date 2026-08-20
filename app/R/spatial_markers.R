@@ -1,7 +1,7 @@
 spatial_markers_UI <- function(id) {
   ns <- NS(id)
-  tabPanel("Spatial Markers",
-           titlePanel(h1("Spatial Markers", align = 'center')),
+  tabPanel("Cell Type Markers",
+           titlePanel(h1("Cell Type Markers", align = 'center')),
            br(),
            fluidRow(
              column(width = 5,
@@ -57,6 +57,9 @@ spatial_markers_UI <- function(id) {
                     strong("FDR-P "), span("The P value, adjusted for multiple comparisons (B&H)"),
                     hr(),
                     h4("Download Data"),
+                    radioButtons(ns("plot_format"), "Plot format",
+                      choices = c("PNG (300 dpi)" = "png", "SVG" = "svg", "PDF" = "pdf"),
+                      inline = TRUE, selected = "png"),
                     p(class = 'text-center', downloadButton(
                       ns('download_table'), 'Download Markers'
                     )),
@@ -88,7 +91,7 @@ spatial_markers_SERVER <- function(id, metadata_all_cells, cell_type_names) {
     
     # results <- read_csv(
     #   "input/sn_vta/sn_vta_mast.csv",
-    #   col_names = c("Gene Symbol",
+    #   col_names = c("Gene",
     #                 "Log2 Fold-change",
     #                 "Adjusted P Value"),
     #   skip = 1
@@ -239,7 +242,7 @@ spatial_markers_SERVER <- function(id, metadata_all_cells, cell_type_names) {
     # download the filtered data
     output$download_table = downloadHandler(
       filename = function() {
-      paste0('Spatial Markers - ', markers_vars$selected_cell_type_public, '.csv')
+      paste0('Cell Type Markers - ', markers_vars$selected_cell_type_public, '.csv')
       },
       content = function(file) {
         write_csv(markers_vars$marker_table, file)
@@ -248,33 +251,19 @@ spatial_markers_SERVER <- function(id, metadata_all_cells, cell_type_names) {
     
     output$download_spatial_plot <- downloadHandler(
       filename = function() {
-        paste0("Spatial Plot - ", markers_vars$selected_gene, ".png")
+        paste0("Spatial Plot - ", markers_vars$selected_gene, ".", input$plot_format)
       },
       content = function(file) {
-        ggsave(file, plot_spatial_func(),
-               width = 800, 
-               height = 800/1.5,
-               # width = input$plot_size,
-               # height = (input$plot_size)/1.5,
-               units = "px",
-               dpi = 72,
-               bg = "white")
+        export_plot(file, plot_spatial_func(), input$plot_format)
       }
     )
     
     output$download_marker_plot <- downloadHandler(
       filename = function() {
-        paste0("Marker Plot - ", markers_vars$selected_gene, ".png")
+        paste0("Marker Plot - ", markers_vars$selected_gene, ".", input$plot_format)
       },
       content = function(file) {
-        ggsave(file, plot_marker_func(),
-               width = 800, 
-               height = 800/1.5,
-               # width = input$plot_size,
-               # height = (input$plot_size)/1.5,
-               units = "px",
-               dpi = 72,
-               bg = "white")
+        export_plot(file, plot_marker_func(), input$plot_format)
       }
     )
 

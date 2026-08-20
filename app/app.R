@@ -37,7 +37,7 @@ ui <- tagList(
     home_UI("home"),
     navbarMenu(
       title = "Spatial Transcriptomics",
-      "Markers",
+      "Cell Type Markers",
       spatial_markers_UI("spatial_markers"),
       sn_vta_UI("sn_vta"),
       "Ageing",

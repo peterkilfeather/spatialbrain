@@ -26,14 +26,14 @@ home_UI <- function(id) {
                     h5("Spatial Transcriptomic Analyses:"),
                     tags$ul(
                       tags$li(tags$strong("Cell Type Markers")),
-                      tags$li(tags$strong("SN/VTA Markers in Dopaminergic Neurons")),
-                      tags$li(tags$strong("Cell Number Changes in Age")),
+                      tags$li(tags$strong("SN/VTA Markers")),
+                      tags$li(tags$strong("Cell Type Numbers with Age")),
                     ),
                     br(),
                     h5("TRAP Analyses:"),
                     tags$ul(
-                      tags$li(tags$strong("Dopaminergic Markers")),
-                      tags$li(tags$strong("Dopaminergic Ageing")),
+                      tags$li(tags$strong("TRAP Enrichment in Dopaminergic Neurons")),
+                      tags$li(tags$strong("Ageing in Dopaminergic Neurons")),
                       tags$li(tags$strong("Alternative Splicing in Dopaminergic Neurons")),
                     ),
                     br(),

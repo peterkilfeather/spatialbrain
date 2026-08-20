@@ -54,6 +54,9 @@ sn_vta_UI <- function(id) {
                     strong("FDR-P "), span("The P value, adjusted for multiple comparisons (B&H)."),
                     hr(),
                     h4("Data Download"),
+                    radioButtons(ns("plot_format"), "Plot format",
+                      choices = c("PNG (300 dpi)" = "png", "SVG" = "svg", "PDF" = "pdf"),
+                      inline = TRUE, selected = "png"),
                     p(class = 'text-center', downloadButton(
                       ns('download_table'), 'Download Markers'
                     )),
@@ -87,14 +90,14 @@ sn_vta_SERVER <- function(id) {
     metadata <- readRDS("input/startup/da_metadata.rds")
     # counts <- read_csv(
     #   "input/markers/sn_vs_vta_da_counts.csv",
-    #   col_names = c("sample_cell_id", "Gene Symbol", "SCT_count")
+    #   col_names = c("sample_cell_id", "Gene", "SCT_count")
     # )
     
     sn_vta_vars <- reactiveValues()
     
     sn_vta_vars$results <- read_csv(
       "input/sn_vta/sn_vta_mast.csv",
-      col_names = c("Gene Symbol",
+      col_names = c("Gene",
                     "LFC",
                     "FDR-P"),
       skip = 1
@@ -122,10 +125,10 @@ sn_vta_SERVER <- function(id) {
     observeEvent(input$sn_vta_markers_rows_selected, {
       req(sn_vta_vars$results)
       if (is.null(input$sn_vta_markers_rows_selected)) {
-        sn_vta_vars$gene <- sn_vta_vars$results[1,] %>% pull(`Gene Symbol`)
+        sn_vta_vars$gene <- sn_vta_vars$results[1,] %>% pull(Gene)
       } else {
         sn_vta_vars$gene <-
-          sn_vta_vars$results[input$sn_vta_markers_rows_selected, ]$`Gene Symbol`
+          sn_vta_vars$results[input$sn_vta_markers_rows_selected, ]$Gene
       }
 
       sn_vta_vars$counts <- read_csv(paste0("input/sn_vta/da_counts_per_gene/", sn_vta_vars$gene, ".csv"))
@@ -136,14 +139,14 @@ sn_vta_SERVER <- function(id) {
 
     # observeEvent(input$sn_vta_markers_rows_selected, {
     #   
-    #   sn_vta_vars$gene <- sn_vta_vars$results[input$sn_vta_markers_rows_selected,]$`Gene Symbol`
+    #   sn_vta_vars$gene <- sn_vta_vars$results[input$sn_vta_markers_rows_selected,]$Gene
     #   
     #   # mutate(SCT_count = as.double(SCT_count))
     #   
     # })
       
       # SN_VTA VIOLIN PLOT
-      output$violin_plot <- renderPlot({
+      plot_violin_func <- function(){
         sn_vta_vars$plot_data %>%
           ggplot(aes(
             x = region,
@@ -159,10 +162,14 @@ sn_vta_SERVER <- function(id) {
           labs(x = "Region",
                y = "Count",
                title = sn_vta_vars$gene)
+      }
+      
+      output$violin_plot <- renderPlot({
+        plot_violin_func()
       })
       
       # SN_VTA SPATIAL PLOT
-      output$spatial_plot <- renderPlot({
+      plot_spatial_func <- function(){
         sn_vta_vars$plot_data %>%
           arrange(count) %>%
           # filter(count > 0) %>%
@@ -191,7 +198,39 @@ sn_vta_SERVER <- function(id) {
           panel_border() +
           labs(colour = "Count above threshold", 
                title = sn_vta_vars$gene)
+      }
+      
+      output$spatial_plot <- renderPlot({
+        plot_spatial_func()
       })
+    
+    # download the data
+    output$download_table = downloadHandler(
+      filename = function() {
+        "SN/VTA Markers.csv"
+      },
+      content = function(file) {
+        write_csv(sn_vta_vars$results, file)
+      }
+    )
+    
+    output$download_spatial_plot <- downloadHandler(
+      filename = function() {
+        paste0("Spatial Plot - ", sn_vta_vars$gene, ".", input$plot_format)
+      },
+      content = function(file) {
+        export_plot(file, plot_spatial_func(), input$plot_format)
+      }
+    )
+    
+    output$download_marker_plot <- downloadHandler(
+      filename = function() {
+        paste0("Marker Plot - ", sn_vta_vars$gene, ".", input$plot_format)
+      },
+      content = function(file) {
+        export_plot(file, plot_violin_func(), input$plot_format)
+      }
+    )
     
     # output$debug <- renderPrint(sn_vta_vars$plot_data)
     

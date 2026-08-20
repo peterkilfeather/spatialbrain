@@ -1,0 +1,81 @@
+# SpatialBrain — Functionality & Visualisation Review
+
+Date: 2026-08-20. Scope: review + plan for the capabilities and visuals of the public Shiny app at https://spatialbrain.org/. Decisions from a grilling session (19 questions, all confirmed); see `docs/adr/0003-gene-query-cross-tab-selection-store.md`. Load performance is out of scope — covered by `docs/performance-review.md` (TTI ≤ 3.42 s, budget met).
+
+## Topology & audience (verified)
+
+- Public companion to Kilfeather et al., Cell Rep 2024 (PMID 38386560). Audience: paper readers/reviewers; secondary: public showcase.
+- 7 tabs: Home, Cell Type Markers, SN/VTA Markers, Cell Type Numbers with Age (Spatial Transcriptomics); TRAP Enrichment, Ageing, Alternative Splicing (TRAP). All `renderPlot` static ggplot; `plotly` loaded but unused.
+- Every tab is gene-selection-driven: click a row in a results table → per-gene plot. Per-gene counts are lazy-read RDS from the ~11 GB per-gene corpus (documented interaction latency, deferred — perf review).
+- Data: all five analysis meta-tables are small, in-memory, and keyed by gene symbol. Verified: TRAP enrichment 23,392 genes (Gene, Log2 Fold Enrichment, FDR-P); Ageing 14,777 (Gene, LFC, FDR-P); Splicing 6,878 (Gene, FDR-P); SN/VTA 4,053 (Gene Symbol, LFC, FDR-P); Cell-type markers 32 × ~2,865 (Gene, LFC, FDR-P). Union 23,576 symbols; 1,454 in all five. Minor duplicate rows (29/14/4) — `distinct(Gene)` at load.
+
+## Findings
+
+1. **Naming drift** (four classes, all label-only): Home lists "Dopaminergic Markers" under TRAP Analyses but the tab is "Dopaminergic TRAP Enrichment" — the glossary defines Marker (cell-type-defining gene) and TRAP enrichment (TRAP vs TOTAL) as distinct concepts; Home conflates them. Tab titles differ from nav labels (Dopaminergic Splicing / Dopaminergic Ageing). Gene column is "Gene Symbol" in SN/VTA vs "Gene" elsewhere. Facet labels differ between spatial tabs (`mouse_id_presentation_no_genotype` vs `mouse_id_label`).
+2. **Dead capability stubs**: `gene_query.R` and `download_data.R` are empty tab stubs, commented out of `app.R` — two intended-but-unbuilt capabilities.
+3. **Unused interactivity scaffolding**: a full interactive MA plot (`renderPlotly`: hover + brush-select → filters gene table) is commented out in `trap_enrichment.R`; `plotly` is already a dependency.
+4. **Screen-grab exports**: all plot downloads are 800 px, 72 dpi PNGs.
+5. **Cross-analysis gene lookup is cheap**: five in-memory meta-tables, all keyed by gene — a gene-centric summary view needs no new data files.
+6. **Dead asset**: `www/spatial_brain_163.png` (1.6 MB) unreferenced (grep).
+7. **Encoding-fidelity — verified against the paper** (full text, Wayback snapshot of Cell.com; no changes without sign-off per decision). App vs paper:
+   - MA plot categories: **Enriched 5,539 / Depleted 4,441 / Unchanged 13,412** — paper: 4,828 genes more abundant vs TOTAL at FDR < 0.01 (DESeq2 with `lfcThreshold = log2(1.05)` + ashr shrinkage). 711-gene gap → the app's Enriched classification uses a looser criterion than the paper's. **The MA plot is not a paper figure at all** (paper shows no MA plot); it is the app's own rendering — its y-axis squish at 6 and category thresholds are app choices, not published encodings.
+   - SN/VTA table: **769 genes at FDR < 0.05** — paper reports **220** DE genes between SN and VTA subpopulations. 549-gene gap.
+   - Cell-type markers: **32 marker tables** — paper reports **29 cell types** (results; abstract says 28+DA). 3-cell-type gap.
+   - MASC: app data confirms the paper's headline findings (Microglia: Age-responsive, estimate 2.12, FDR 2.7e-8, expansion; DA_SN estimate −0.61, FDR 1.3e-6, loss). App's volcano hline (FDR 0.01) matches the paper's methods statement.
+   - Splicing: 2,264 genes at FDR < 0.05 in the app table — paper: 1,617 alternatively spliced; DTU significance cutoff is **not stated in the paper** (unverifiable).
+   - TRAP meta table: 23,392 rows vs paper's "23,292 genes detected" (100-row gap).
+   All gaps investigated and dispositioned — see "Investigation outcomes" below.
+8. **Dev environment**: local R 4.6.1 (container 4.4.1); 6 app packages missing locally (waiter, shinycssloaders, shinythemes, DT, shinyWidgets, plotly). Functional verification local; timing in-container.
+
+## Decisions (grilling session)
+
+- Deliverable: this doc + phased plan; safe phases agent-executed, deploy gated on approval.
+- **Capabilities**: (1) build Gene Query — single-gene autocomplete search → tall summary table (one row per analysis: Cell type markers, SN/VTA, TRAP enrichment, Ageing, Splicing) with status, key stats, jump button; absent analyses show "Not tested". (2) Restore MA-plot interactivity (hover + brush-select filters table) and add volcano hover. (3) Build Download Data tab — one-click ZIP of all five analysis tables + raw-data links to the paper's deposition. (4) Spatial plots stay static (100k+ points; encoding is the paper's). (5) Interaction latency out of scope, documented.
+- **Visuals**: canonical titles adopted (see table); exports → 300 dpi PNG + SVG/PDF; light-touch UI only; delete dead asset.
+- **Architecture**: Gene Query jumps to analysis tabs via a shared cross-tab selection store — ADR-0003.
+- No encoding changes to published analyses without sign-off.
+
+### Canonical titles
+
+| Analysis | Nav (now) | Title (now) | Home (now) | Canonical |
+|---|---|---|---|---|
+| Cell-type markers | Markers | Spatial Markers | Cell Type Markers | Cell Type Markers |
+| Region markers | SN/VTA Markers | SN/VTA Markers | SN/VTA Markers in Dopaminergic Neurons | SN/VTA Markers |
+| Cell numbers | Cell Type Numbers with Age | same | Cell Number Changes in Age | Cell Type Numbers with Age |
+| TRAP enrichment | Dopaminergic TRAP Enrichment | same | Dopaminergic Markers | TRAP Enrichment in Dopaminergic Neurons |
+| Ageing | Ageing in Dopaminergic Neurons | Dopaminergic Ageing | Dopaminergic Ageing | Ageing in Dopaminergic Neurons |
+| Splicing | Alternative Splicing in Dopaminergic Neurons | Dopaminergic Splicing | same | Alternative Splicing in Dopaminergic Neurons |
+
+Plus: gene column → "Gene" everywhere; one mouse-presentation facet string across spatial tabs.
+
+## Plan
+
+- **Phase A — presentation ✅ done 2026-08-20**: canonical titles applied across `app.R`, `home.R`, and module UIs (verified in live local app: nav labels, tab titles, Home list all canonical); "Gene Symbol" → "Gene" in `sn_vta.R` (verified: DT columns Gene/LFC/FDR-P); facet labels unified (xy plot now "Young N"/"Old N" — verified in rendered ggplot); deleted unreferenced `www/spatial_brain_163.png`; all six plot downloads now 300 dpi PNG + SVG/PDF via new `app/R/export.R` helper (verified: PNG 800×533 @ 300 dpi, SVG, PDF all render) with per-tab format selector; added the two sign-off definition notes (TRAP Enrichment sumz criterion; Cell Type Numbers 32-vs-29 — both verified in browser). Bonus fix: `sn_vta.R` had three download buttons with no server handlers (dead downloads) — handlers added. Local verification env: 7 packages installed (waiter, shinycssloaders, shinythemes, DT, shinyWidgets, plotly, BiocManager); local R 4.6.1 vs container 4.4.1.
+- **Phase B — interactivity (agent-executable)**: restore `renderPlotly` MA plot (hover tooltip: gene/LFC/FDR; brush-select filters the enrichment table); convert MASC volcano to hover tooltips (plotly, ~30 points). Verify: browser interaction in local app.
+- **Phase C — new tabs (agent-executable, largest)**: Gene Query per decision + ADR-0003 store (distinct gene keys at load; jump sets arriving selection in target module); Download Data tab (ZIP: 5 analysis tables incl. 32 marker tables; raw-data links per the paper's Data Availability statement — verified accessions: GEO **GSE215276** (TRAP RNA-seq, 191 samples; BioProject PRJNA889520), CNGBdb/CNSA **CNP0003397** (Stereo-seq raw), code + processed data at github.com/legbar/spatialbrain and doi:10.5281/zenodo.10401701, protocols.io 10.17504/protocols.io.36wgqj75kvk5/v1, IHC imaging Zenodo 10.5281/zenodo.10401754 / 10401777, Fura-2 data 10.5281/zenodo.10669197; note: paper's CASR ICC DOI is inconsistent between Data Availability (…497) and Key Resources (…498) — show both or the record's canonical). The paper's supplementary tables (S1–S4) contain only cell-type annotation, spatially variable genes, PD GWAS candidates, and primers — the analysis result matrices live only at spatialbrain.org, so the ZIP fulfils the paper's own "all processed data provided at spatialbrain.org" promise. Verify: local run + browser; gene with all-five coverage (e.g. a 1,454-union gene) and a sparse gene ("Not tested" cells).
+- **Phase D — deploy (your call)**: rebuild `spatialbrain:latest`, restart container, re-measure TTI ≤ 5 s; re-check HTML still user-independent (cache guard from perf review).
+- Each phase committed separately.
+
+## Risks
+
+- **Rename fallout**: titles appear in navbar HTML (Cloudflare-cached, browser TTL 60 s — bounds propagation); grep all module strings before/after; no data-encoding touched.
+- **Plotly restore**: 23 k-point MA plot in client — verify interaction latency in browser; keep `toImageButtonOptions` for exports; spatial tabs stay static.
+- **Gene Query keys**: case-mixed symbols (Rik genes) and duplicate rows — `distinct()` at load; autocomplete over the 23,576-union.
+- **Fidelity**: any encoding change requires sign-off (decision); verification complete — see "Investigation outcomes".
+
+## Investigation outcomes (Q20, pinned to source)
+
+- **MA-plot classification**: `app/scripts/shiny_dev.R:345` — `enrichment = ifelse(sumz_adj > 0.01, "Unchanged", ifelse(log2FoldChange > 0, "Enriched", "Depleted"))`: one-sided FDR ≤ 0.01 on a sumz meta-analysis p-value, no LFC threshold. Reproduces shipped counts exactly (Enriched 5,539, Depleted 4,441; FDR<0.01&LFC<0 = 4,441 exact). The paper's 4,828 used DESeq2 `padj < 0.01` + `lfcThreshold = log2(1.05)` — a stricter definition **not recomputable from shipped data** (only `sumz_adj` is shipped). App is internally consistent (plot colours = table = "Download All Enriched" button, all sumz FDR ≤ 0.01 one-sided).
+- **SN/VTA 220**: no filter on the shipped MAST table reproduces it (FDR<0.05 = 769; +|LFC|>0.25 → 112). Table is the complete MAST output; the paper's 220 came from an unshipped run/filter.
+- **Cell types**: 32 = 29 non-age-responsive + 3 "Age-responsive" subtypes (Astrocytes/Microglia/Oligodendrocytes: Age-responsive; verified against `metadata_all_cells.cell_type_public`). Paper's "29 cell types" excludes the subtypes; the paper's microglial expansion (Fig 4C) is the "Microglia: Age-responsive" row (estimate 2.12, FDR 2.7e-8).
+- **TRAP gene count**: 23,392 shipped vs "23,292" in paper text — 100-gene version difference, not recoverable from shipped data.
+
+Per-item sign-off (2026-08-20, all confirmed):
+1. **MA-plot criterion**: keep the sumz one-sided FDR ≤ 0.01 classification as-is; add a Definitions sentence to the TRAP Enrichment tab — "Enriched/Depleted: FDR-P ≤ 0.01 (sumz meta-analysis), one-sided".
+2. **SN/VTA 220**: document as version difference; no app change.
+3. **Cell types**: document; add a Definitions line to the Cell Type Numbers tab — "32 annotated cell types, incl. 3 age-responsive subtypes; 29 in the published annotation".
+4. **TRAP gene count**: document only.
+
+## Status
+
+Paper facts folded in (full text via Wayback snapshot of Cell.com — the paper is not in PMC and Cell.com blocks automated fetch). Accessions verified against GEO; CNGBdb record content unverifiable (JS-rendered). All verification numbers in finding 7 are local computations against the app's shipped data.

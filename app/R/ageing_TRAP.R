@@ -2,7 +2,7 @@ ageing_TRAP_UI <- function(id) {
   ns <- NS(id)
   tabPanel(
     "Ageing in Dopaminergic Neurons",
-    titlePanel(h1("Dopaminergic Ageing", align = 'center')),
+    titlePanel(h1("Ageing in Dopaminergic Neurons", align = 'center')),
     br(),
     fluidRow(column(
       width = 6,
@@ -42,6 +42,9 @@ ageing_TRAP_UI <- function(id) {
         3,
         h4(helpText("Download Data")),
         hr(),
+        radioButtons(ns("plot_format"), "Plot format",
+          choices = c("PNG (300 dpi)" = "png", "SVG" = "svg", "PDF" = "pdf"),
+          inline = TRUE, selected = "png"),
         p(class = 'text-center', downloadButton(
           ns('download_table'), 'Download Ageing Results Table'
         )),
@@ -167,17 +170,10 @@ ageing_TRAP_SERVER <- function(id) {
 
     output$download_plot <- downloadHandler(
       filename = function() {
-        paste0("Ageing Plot - ", ageing_TRAP_vars$selected_gene, ".png")
+        paste0("Ageing Plot - ", ageing_TRAP_vars$selected_gene, ".", input$plot_format)
       },
       content = function(file) {
-        ggsave(file, plot_func(),
-               width = 800,
-               height = 800/1.5,
-               # width = input$plot_size,
-               # height = (input$plot_size)/1.5,
-               units = "px",
-               dpi = 72,
-               bg = "white")
+        export_plot(file, plot_func(), input$plot_format)
       }
     )
 

@@ -41,6 +41,7 @@ cell_type_numbers_age_UI <- function(id) {
                     p(tags$b("OLD: "), "Mice aged 18-22 months"),
                     p(tags$b("FDR-P: "), "The P value, adjusted for multiple comparisons (B&H)"),
                     p(tags$b("Estimate: "), "Odds ratio for abundance change in aged brains. Positive values indicate an increase in abundance"),
+                    p(tags$b("Cell types: "), "32 annotated cell types, incl. 3 age-responsive subtypes; 29 in the published annotation"),
                     
                     style = 'border-right: 1px solid'
              ), 
@@ -157,6 +158,8 @@ cell_type_numbers_age_SERVER <- function(id, cell_type_names) {
     })
     
     xy <- readRDS("input/ageing_cell_type_numbers/xy.rds")
+    
+    xy <- xy %>% mutate(mouse_id_label = str_replace_all(mouse_id_label, c("^YOUNG: " = "Young ", "^OLD: " = "Old ")))
     
     output$xy_plot <- renderPlot({
       req(xy)

@@ -1,7 +1,7 @@
 trap_enrichment_UI <- function(id) {
   ns <- NS(id)
-  tabPanel("Dopaminergic TRAP Enrichment",
-           titlePanel(h1("Dopaminergic TRAP Enrichment", align = 'center')),
+  tabPanel("TRAP Enrichment in Dopaminergic Neurons",
+           titlePanel(h1("TRAP Enrichment in Dopaminergic Neurons", align = 'center')),
            br(),
            fluidRow(
              column(8,
@@ -36,6 +36,7 @@ trap_enrichment_UI <- function(id) {
                     p(tags$b("FDR-P: "), "The P value, adjusted for multiple comparisons (B&H)"),
                     p(tags$b("TOTAL: "), "Bulk RNA from ventral midbrain"),
                     p(tags$b("TRAP: "), "RNA from DAT-TRAP"),
+                    p(tags$b("Enriched/Depleted: "), "FDR-P ≤ 0.01 (sumz meta-analysis), one-sided"),
                     style = 'border-right: 1px solid'
                     ), 
              column(6, 
