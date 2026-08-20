@@ -12,15 +12,10 @@ library(ggrepel)
 library(plotly)
 
 
-url <- "https://i.postimg.cc/FHshdD0G/spatial-full-1920.jpg"
-# url <- "https://www.freecodecamp.org/news/content/images/size/w2000/2020/04/w-qjCHPZbeXCQ-unsplash.jpg"
-
-# Define UI for application that draws a histogram
+# Define UI
 ui <- tagList(
-  # shinythemes::themeSelector(),
   navbarPage(
-    tags$head(# Note the wrapping of the string in HTML()
-      # includeHTML(("google-analytics.html")),
+    tags$head(
       tags$style(
         HTML("
       table.dataTable tbody tr.selected {
@@ -35,8 +30,7 @@ ui <- tagList(
       waiter_preloader(html = tagList(
         spin_fading_circles(),
         h1("Loading SpatialBrain...")
-      ), 
-      # image = url, 
+      ),
       fadeout = T)
       
     ),
@@ -65,10 +59,6 @@ ui <- tagList(
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
-  # waiter_show()
-  
-  # Sys.sleep(3)
-  
   home_SERVER("home")
   
   metadata_all_cells <- readRDS("input/startup/metadata_all_cells.rds")
