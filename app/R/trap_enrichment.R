@@ -6,7 +6,7 @@ trap_enrichment_UI <- function(id) {
            fluidRow(
              column(8,
                     offset = 2,
-                    plotOutput(ns("ma_plot")),
+                    plotlyOutput(ns("ma_plot")),
                     # verbatimTextOutput(ns("debug"))
                     )
            ),
@@ -28,7 +28,7 @@ trap_enrichment_UI <- function(id) {
                     checkboxInput(ns("show_depleted"),
                                   label = "Show Depleted",
                                   value = T),
-                    # p(tags$em("To reset your selection, double click within the plot area")),
+                    p(tags$em("To reset your selection, double click within the plot area")),
                     br(),
                     h4(helpText("Definitions")),
                     hr(),
@@ -99,17 +99,23 @@ trap_enrichment_SERVER <- function(id) {
                    
                  })
     
-    # Genes TABLE
+    # Genes TABLE - full table by default; filtered to the brushed MA-plot
+    # points while a plotly selection is active (double-click clears it)
+    table_data <- reactive({
+      selection <- event_data("plotly_selected")
+      if (is.null(selection) || nrow(selection) == 0) {
+        MB_FRACTION_META
+      } else {
+        MB_FRACTION_META %>%
+          filter(Gene %in% selection$customdata)
+      }
+    })
+    
     output$enrichment_table <- DT::renderDataTable({
-      # if (is.null(event_data("plotly_selected")$customdata)) {
-      MB_FRACTION_META %>%
+      table_data() %>%
         select(Gene,
                "LFC" = `Log2 Fold Enrichment`,
                `FDR-P`)
-      # } else {
-      # MB_FRACTION_META[MB_FRACTION_META$Gene %in% event_data("plotly_selected")$customdata, ]
-      # }
-      
     },
     selection = "single",
     server = TRUE,
@@ -117,121 +123,118 @@ trap_enrichment_SERVER <- function(id) {
     
     observeEvent(c(input$enrichment_table_rows_selected), {
       req(MB_FRACTION_META)
+      current_table <- table_data()
       if (is.null(input$enrichment_table_rows_selected)) {
-      trap_enrichment_vars$selected_gene <- MB_FRACTION_META[1,] %>% pull(Gene)
-      } else {
+        trap_enrichment_vars$selected_gene <- current_table[1,] %>% pull(Gene)
+      } else if (input$enrichment_table_rows_selected <= nrow(current_table)) {
         trap_enrichment_vars$selected_gene <-
-          MB_FRACTION_META[input$enrichment_table_rows_selected, ]$Gene
+          current_table[input$enrichment_table_rows_selected, ]$Gene
       }
       trap_enrichment_vars$highlight_markers <- trap_enrichment_vars$plot_data %>%
         filter(external_gene_name == trap_enrichment_vars$selected_gene)
     }, ignoreNULL = F)
     
-    output$ma_plot <- renderPlot({
-      req(trap_enrichment_vars$highlight_markers)
-      trap_enrichment_vars$plot_data %>%
-        ggplot(aes(x = baseMean_C1,
-                   y = log2FoldChange,
-                   colour = enrichment)) +
-        theme_cowplot() +
-        geom_point(
-          size = 0.5,
-                   alpha = 0.5
-          ) +
-        geom_point(data = trap_enrichment_vars$highlight_markers,
-                   aes(fill = enrichment),
-                   size = 5,
-                   shape = 21,
-                   colour = "black") +
-        geom_label_repel(data = trap_enrichment_vars$highlight_markers,
-                         aes(label = external_gene_name),
-                         colour = "black",
-                         arrow = arrow(length = unit(0.01, "npc")),
-                         # box.padding = 1,
-                         size = 5
-                         # nudge_x = -1
-        ) +
-        scale_x_log10(breaks = c(1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6),
-                      expand = expansion(mult = c(0, 0.05))) +
-        scale_y_continuous(limits = c(NA, 6),
-                           # breaks = c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5),
-                           oob = scales::squish) +
-        scale_color_manual(values = c("Depleted" = "#1F77B4FF",
-                                      "Enriched" = "#2CA02CFF",
-                                      "Unchanged" = "#C1C1C1")) +
-        scale_fill_manual(values = c("Depleted" = "#1F77B4FF",
-                                     "Enriched" = "#2CA02CFF",
-                                     "Unchanged" = "#C1C1C1")) +
-        labs(x = "Mean Counts",
-             y = "Log2 Fold Change",
-             colour = "Enrichment") +
-        theme(legend.position = "top",
-              # legend.text = element_text(size = 14),
-              # legend.title = element_text(size = 14)
-        ) +
-        guides(color = guide_legend(override.aes = list(size = 3, alpha = 1) ) ,
-               fill = FALSE)
+    # Interactive MA plot: hover shows gene / LFC / FDR-P; box-select
+    # filters the enrichment table (dragmode = "select"; double-click clears)
+    output$ma_plot <- renderPlotly({
+      req(trap_enrichment_vars$plot_data,
+          trap_enrichment_vars$highlight_markers)
       
+      pal <- c("#C1C1C1",
+               "#1F77B4FF",
+               "#2CA02CFF")
+      pal <- setNames(pal, c("Unchanged", "Depleted", "Enriched"))
+      
+      # FDR-P lives in MB_FRACTION_META (1:1 by gene). The ggplot y-axis
+      # squishes LFCs > 6 to the 6 limit; mirror that in the display values
+      # while tooltips keep the true LFC.
+      plot_data <- trap_enrichment_vars$plot_data %>%
+        left_join(MB_FRACTION_META, by = c("external_gene_name" = "Gene"),
+                  relationship = "many-to-many") %>%
+        mutate(y_display = pmin(log2FoldChange, 6),
+               hover_text = paste0("<b>", external_gene_name,
+                                   "</b><br>LFC: ", signif(log2FoldChange, 3),
+                                   "<br>FDR-P: ", signif(`FDR-P`, 3)))
+      
+      highlight_markers <- trap_enrichment_vars$highlight_markers %>%
+        left_join(MB_FRACTION_META, by = c("external_gene_name" = "Gene"),
+                  relationship = "many-to-many") %>%
+        mutate(y_display = pmin(log2FoldChange, 6))
+      
+      fig <- plot_ly(
+        data = plot_data,
+        x = ~ baseMean_C1,
+        y = ~ y_display,
+        type = "scatter",
+        mode = "markers",
+        color = ~ enrichment,
+        colors = pal,
+        opacity = 0.5,
+        text = ~ hover_text,
+        hoverinfo = "text",
+        customdata = ~ external_gene_name
+      )
+      
+      if (nrow(highlight_markers) > 0) {
+        highlight_colour <- pal[as.character(highlight_markers$enrichment[1])]
+        fig <- fig %>%
+          add_trace(
+            data = highlight_markers,
+            x = ~ baseMean_C1,
+            y = ~ y_display,
+            type = "scatter",
+            mode = "markers+text",
+            text = ~ external_gene_name,
+            textposition = "top center",
+            textfont = list(color = "black", size = 12),
+            marker = list(size = 13,
+                          color = highlight_colour,
+                          line = list(color = "black", width = 1.5)),
+            opacity = 1,
+            hoverinfo = "skip",
+            showlegend = FALSE
+          )
+      }
+      
+      fig %>%
+        event_register("plotly_selected") %>%
+        config(
+          displayModeBar = T,
+          toImageButtonOptions = list(
+            filename = 'TRAP Enrichment Plot',
+            width = 1366,
+            height =  768
+          )
+        ) %>%
+        layout(
+          dragmode = "select",
+          xaxis = list(type = "log",
+                       # plotly log-axis ranges are in log10 units (ggplot
+                       # x-range -1.714..5.484 in log10 space)
+                       range = list(-1.714, 5.484),
+                       title = "Mean Counts",
+                       showline = T,
+                       linewidth = 2,
+                       linecolor = "black"),
+          yaxis = list(range = list(-9.083, 6.718),
+                       title = "Log<sub>2</sub> Fold Change",
+                       showline = T,
+                       linewidth = 2,
+                       linecolor = "black"),
+          margin = list(t = 75),
+          legend = list(title = list(text = '<b>Enrichment</b>'),
+                        orientation = 'h',
+                        x = 0.5,
+                        xanchor = "center",
+                        y = 6.5)
+        )
     })
-    
-    # output$ma_plot <- renderPlotly({
-    #   pal <- c("#C1C1C1",
-    #            "#1F77B4FF",
-    #            "#2CA02CFF")
-    #   pal <- setNames(pal, c("Unchanged", "Depleted", "Enriched"))
-    #   
-    #   fig <- plot_ly(
-    #     data = trap_enrichment_vars$plot_data,
-    #     x = ~ baseMean_C1,
-    #     y = ~ log2FoldChange,
-    #     type = "scatter",
-    #     mode = "markers",
-    #     color = ~ enrichment,
-    #     colors = pal,
-    #     opacity = 0.5,
-    #     text = ~ paste("Gene: ", external_gene_name),
-    #     hoverinfo = "text",
-    #     customdata = ~ external_gene_name
-    #   ) %>%
-    #     config(
-    #       displayModeBar = T,
-    #       toImageButtonOptions = list(
-    #         filename = 'TRAP Enrichment Plot',
-    #         width = 1366,
-    #         height =  768
-    #       )
-    #     ) %>%
-    #     layout(
-    #       dragmode = "select",
-    #       # title = list(text = "TRAP Enrichment Status", 
-    #       #              xanchor = "left", 
-    #       #              x = 0.01),
-    #       xaxis = list(type = "log",
-    #                    title = "Mean Counts", 
-    #                    showline = T, 
-    #                    linewidth = 2, 
-    #                    linecolor = "black"),
-    #       yaxis = list(range = list(-6, 6),
-    #                    title = "Log<sub>2</sub> Fold Change", 
-    #                    # zeroline = T, 
-    #                    showline = T, 
-    #                    linewidth = 2, 
-    #                    linecolor = "black"),
-    #       margin = list(t = 75), 
-    #       legend=list(
-    #         title=list(text='<b>Enrichment</b>'),
-    #                   orientation = 'h', 
-    #                   y = 6.5)
-    #     )
-    # })
-    
     
     # download the filtered data
     output$download_table = downloadHandler(
       'TRAP Enrichment Information.csv',
       content = function(file) {
-        write_csv(MB_FRACTION_META, file)
-        # write_csv(MB_FRACTION_META[MB_FRACTION_META$Gene %in% event_data("plotly_selected")$customdata, ], file)
+        write_csv(table_data(), file)
       }
     )
     
