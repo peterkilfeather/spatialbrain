@@ -2,6 +2,7 @@ splicing_UI <- function(id) {
   ns <- NS(id)
   tabPanel(
     "Alternative Splicing in Dopaminergic Neurons",
+    value = "splicing",
     titlePanel(h1("Alternative Splicing in Dopaminergic Neurons", align = 'center')),
     br(),
     fluidRow(column(
@@ -63,12 +64,35 @@ splicing_UI <- function(id) {
   )
 }
 
-splicing_SERVER <- function(id) {
+splicing_SERVER <- function(id, gene_selection) {
   moduleServer(id, function(input, output, session) {
     # namespace ----
     ns <- session$ns
     
-    splicing_vars <- reactiveValues()
+        splicing_vars <- reactiveValues()
+    
+    splicing_proxy <- dataTableProxy("splicing_table")
+    
+    # Phase C (ADR-0003): arriving selection from Gene Query. One-shot; with
+    # no arriving selection the observer never fires and the tab behaves
+    # exactly as before.
+    observeEvent(gene_selection$arriving, {
+      req(gene_selection$arriving)
+      gene <- gene_selection$arriving$gene
+      row <- which(splicing_vars$table$Gene == gene)
+      if (length(row) == 0) return()
+      # The arrived gene becomes the tab's default (jump_landed; cleared when
+      # the user picks a row) so the table's first-render selection event
+      # (rows_selected = NULL after the tab is shown) cannot reset to row 1.
+      splicing_vars$jump_landed <- gene
+      splicing_vars$selected_gene <- gene
+      splicing_vars$counts <-
+        readRDS(paste0("input/splicing/", gene, ".rds")) %>%
+        mutate(fraction = ifelse(str_detect(
+          sample_name, "TOTAL"), "TOTAL", "TRAP"
+        ))
+      selectRows(splicing_proxy, row[1])
+    })
     
     splicing_vars$table <-
       readRDS("input/startup/splicing_meta.rds")
@@ -101,11 +125,21 @@ splicing_SERVER <- function(id) {
     observeEvent(input$splicing_table_rows_selected, {
       req(splicing_vars$table)
       if (is.null(input$splicing_table_rows_selected)) {
+        if (!is.null(splicing_vars$jump_landed)) {
+          # First-render event: the DT is initialized now, so re-issue the
+          # row selection that was dropped while the tab was still hidden.
+          row <- which(splicing_vars$table$Gene == splicing_vars$jump_landed)
+          if (length(row) > 0) selectRows(splicing_proxy, row[1])
+          return()
+        }
         splicing_vars$selected_gene <-
           splicing_vars$table[1, ] %>% pull(Gene)
       } else {
-        splicing_vars$selected_gene <-
-          splicing_vars$table[input$splicing_table_rows_selected,]$Gene
+        sel <- splicing_vars$table[input$splicing_table_rows_selected,]$Gene
+        splicing_vars$selected_gene <- sel
+        # Clear the jumped default only on a real user selection (a
+        # different row); the programmatic echo selects the same gene.
+        if (!identical(sel, splicing_vars$jump_landed)) splicing_vars$jump_landed <- NULL
       }
       splicing_vars$counts <-
         readRDS(paste0("input/splicing/",

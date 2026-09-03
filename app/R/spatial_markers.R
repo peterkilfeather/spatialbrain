@@ -1,6 +1,7 @@
 spatial_markers_UI <- function(id) {
   ns <- NS(id)
   tabPanel("Cell Type Markers",
+           value = "spatial_markers",
            titlePanel(h1("Cell Type Markers", align = 'center')),
            br(),
            fluidRow(
@@ -83,7 +84,7 @@ spatial_markers_UI <- function(id) {
 }
 
 # markers server ----
-spatial_markers_SERVER <- function(id, metadata_all_cells, cell_type_names) {
+spatial_markers_SERVER <- function(id, metadata_all_cells, cell_type_names, gene_selection) {
   moduleServer(id, function(input, output, session) {
     # namespace ----
     ns <- session$ns
@@ -107,9 +108,74 @@ spatial_markers_SERVER <- function(id, metadata_all_cells, cell_type_names) {
     #                  filter(`Adjusted P Value` < input$padj)
     #              })
     
-    markers_vars <- reactiveValues()
+        markers_vars <- reactiveValues()
+    
+    spatial_markers_proxy <- dataTableProxy("spatial_markers")
+    
+    # Phase C (ADR-0003): a cell type whose marker table contains `gene` --
+    # the arriving selection's cell type when it fits, else the first match
+    # across the 32 marker tables.
+    resolve_cell_type <- function(gene, cell_type = NULL) {
+      if (!is.null(cell_type) &&
+          gene %in% readRDS(paste0("input/markers/cell_types/", cell_type, ".rds"))$Gene) {
+        return(cell_type)
+      }
+      for (ct in cell_type_names) {
+        if (gene %in% readRDS(paste0("input/markers/cell_types/", ct, ".rds"))$Gene) {
+          return(ct)
+        }
+      }
+      NULL
+    }
+    
+    # Phase C (ADR-0003): arriving selection from Gene Query. One-shot; with
+    # no arriving selection the observer never fires and the tab behaves
+    # exactly as before.
+    pending_gene <- NULL
+    select_jumped_gene <- function(gene) {
+      markers_vars$selected_gene <- gene
+      markers_vars$counts <-
+        readRDS(paste0("input/markers/counts_per_gene/", gene, ".rds")) %>%
+        cbind(metadata_all_cells[, -1])
+    }
+    
+        observeEvent(gene_selection$arriving, {
+      req(gene_selection$arriving)
+      sel <- gene_selection$arriving
+      ct <- resolve_cell_type(sel$gene, sel$cell_type)
+      if (is.null(ct)) return()
+      # The arrived gene becomes the tab's default while it remains valid for
+      # the current cell type (jump_landed; cleared when the user picks a
+      # row). This stops the table's first-render selection event (which
+      # arrives as rows_selected = NULL after the tab is shown) from
+      # resetting the plot to row 1.
+      markers_vars$jump_landed <- sel$gene
+      if (identical(input$cell_type, ct) && !is.null(markers_vars$marker_table) &&
+          sel$gene %in% markers_vars$marker_table$Gene) {
+        # already on the right cell type: select directly
+        select_jumped_gene(sel$gene)
+        selectRows(spatial_markers_proxy,
+                   which(markers_vars$marker_table$Gene == sel$gene)[1])
+      } else if (!identical(input$cell_type, ct)) {
+        # switch cell type, then select once the marker table has loaded
+        pending_gene <<- sel$gene
+        updateSelectizeInput(session, "cell_type", selected = ct)
+      }
+      # else: the target cell type is already active without a loaded table
+      # (or without the gene) — nothing to switch, drop the jump
+    })
+    
+    observeEvent(markers_vars$marker_table, {
+      req(markers_vars$marker_table, pending_gene)
+      gene <- pending_gene
+      pending_gene <<- NULL
+      row <- which(markers_vars$marker_table$Gene == gene)
+      if (length(row) == 0) return()
+      select_jumped_gene(gene)
+      selectRows(spatial_markers_proxy, row[1])
+    }, ignoreNULL = FALSE)
   
-    updateSelectizeInput(getDefaultReactiveDomain(), 
+    updateSelectizeInput(getDefaultReactiveDomain(),  
                          "cell_type", 
                          choices = cell_type_names, 
                          selected = "DA_SN")
@@ -133,13 +199,39 @@ spatial_markers_SERVER <- function(id, metadata_all_cells, cell_type_names) {
     server = TRUE,
     rownames = FALSE)
     
+    # The cell-type change that triggered this observer invalidates any
+    # rows_selected index (it belongs to the previous table): treat the pass
+    # as having no valid row selection, so an arrived gene that is still a
+    # marker of the new cell type is kept (re-selected), and otherwise the
+    # tab falls back to row 1 exactly as before.
+    prev_cell_type <- NULL
     observeEvent(c(input$spatial_markers_rows_selected, input$cell_type), {
       req(markers_vars$marker_table)
-      if (is.null(input$spatial_markers_rows_selected)) {
-        markers_vars$selected_gene <- markers_vars$marker_table[1,] %>% pull(Gene)
+      cell_type_changed <- !identical(prev_cell_type, input$cell_type)
+      prev_cell_type <<- input$cell_type
+      row_sel <- if (cell_type_changed) NULL else input$spatial_markers_rows_selected
+      if (is.null(row_sel) || is.na(row_sel) || row_sel > nrow(markers_vars$marker_table)) {
+        # No valid row selection. The index can be stale after a cell-type
+        # switch (the tables differ in size), which would otherwise index
+        # past the table's rows. When a jumped gene is still valid for this
+        # table, (re-)select its row: the table's first-render event
+        # (rows_selected = NULL after the tab is shown) is the signal that
+        # the DT is now initialized, so a selection issued while it was
+        # hidden (and dropped) can be re-issued. Otherwise default to row 1.
+        if (!is.null(markers_vars$jump_landed) &&
+            markers_vars$jump_landed %in% markers_vars$marker_table$Gene) {
+          selectRows(spatial_markers_proxy,
+                     which(markers_vars$marker_table$Gene == markers_vars$jump_landed)[1])
+        } else {
+          markers_vars$selected_gene <- markers_vars$marker_table[1,] %>% pull(Gene)
+        }
       } else {
-        markers_vars$selected_gene <-
-          markers_vars$marker_table[input$spatial_markers_rows_selected, ]$Gene
+        sel <- markers_vars$marker_table[row_sel, ]$Gene
+        markers_vars$selected_gene <- sel
+        # Clear the jumped default only on a real user selection (a
+        # different row); the programmatic echo of the jump's own selectRows
+        # selects the same gene and must not clear it.
+        if (!identical(sel, markers_vars$jump_landed)) markers_vars$jump_landed <- NULL
       }
       markers_vars$counts <-
         readRDS(paste0(

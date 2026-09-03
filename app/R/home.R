@@ -1,6 +1,7 @@
 home_UI <- function(id) {
   ns <- NS(id)
   tabPanel("Home",
+           value = "home",
            tags$head(
              tags$style(HTML("
       img {

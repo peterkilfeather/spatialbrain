@@ -1,6 +1,7 @@
 cell_type_numbers_age_UI <- function(id) {
   ns <- NS(id)
   tabPanel("Cell Type Numbers with Age",
+           value = "cell_type_numbers_age",
            titlePanel(h1("Cell Type Numbers with Age", align = 'center')),
            br(),
            fluidRow(

@@ -1,7 +1,7 @@
 download_data_UI <- function(id) {
   ns <- NS(id)
   tabPanel("Download Data",
-
+           value = "download_data",
            titlePanel(h1("Download Data", align = 'center')),
            
   )

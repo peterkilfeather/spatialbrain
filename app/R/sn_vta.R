@@ -1,6 +1,7 @@
 sn_vta_UI <- function(id) {
   ns <- NS(id)
   tabPanel("SN/VTA Markers",
+           value = "sn_vta",
            titlePanel(h1("SN/VTA Markers", align = 'left')),
            br(),
            fluidRow(
@@ -81,7 +82,7 @@ sn_vta_UI <- function(id) {
 }
 
 # sn_vta server ----
-sn_vta_SERVER <- function(id) {
+sn_vta_SERVER <- function(id, gene_selection) {
   moduleServer(id, function(input, output, session) {
     # namespace ----
     ns <- session$ns
@@ -93,7 +94,30 @@ sn_vta_SERVER <- function(id) {
     #   col_names = c("sample_cell_id", "Gene", "SCT_count")
     # )
     
-    sn_vta_vars <- reactiveValues()
+        sn_vta_vars <- reactiveValues()
+    
+    sn_vta_proxy <- dataTableProxy("sn_vta_markers")
+    
+    # Phase C (ADR-0003): arriving selection from Gene Query. One-shot; with
+    # no arriving selection the observer never fires and the tab behaves
+    # exactly as before.
+    observeEvent(gene_selection$arriving, {
+      req(gene_selection$arriving)
+      gene <- gene_selection$arriving$gene
+      row <- which(sn_vta_vars$results$Gene == gene)
+      if (length(row) == 0) return()
+      row <- row[1]
+      # The arrived gene becomes the tab's default (jump_landed; cleared when
+      # the user picks a row) so the table's first-render selection event
+      # (rows_selected = NULL after the tab is shown) cannot reset to row 1.
+      sn_vta_vars$jump_landed <- gene
+      sn_vta_vars$gene <- gene
+      sn_vta_vars$counts <-
+        read_csv(paste0("input/sn_vta/da_counts_per_gene/", gene, ".csv"))
+      sn_vta_vars$plot_data <- sn_vta_vars$counts %>%
+        inner_join(metadata)
+      selectRows(sn_vta_proxy, row)
+    })
     
     sn_vta_vars$results <- read_csv(
       "input/sn_vta/sn_vta_mast.csv",
@@ -125,10 +149,20 @@ sn_vta_SERVER <- function(id) {
     observeEvent(input$sn_vta_markers_rows_selected, {
       req(sn_vta_vars$results)
       if (is.null(input$sn_vta_markers_rows_selected)) {
+        if (!is.null(sn_vta_vars$jump_landed)) {
+          # First-render event: the DT is initialized now, so re-issue the
+          # row selection that was dropped while the tab was still hidden.
+          row <- which(sn_vta_vars$results$Gene == sn_vta_vars$jump_landed)
+          if (length(row) > 0) selectRows(sn_vta_proxy, row[1])
+          return()
+        }
         sn_vta_vars$gene <- sn_vta_vars$results[1,] %>% pull(Gene)
       } else {
-        sn_vta_vars$gene <-
-          sn_vta_vars$results[input$sn_vta_markers_rows_selected, ]$Gene
+        sel <- sn_vta_vars$results[input$sn_vta_markers_rows_selected, ]$Gene
+        sn_vta_vars$gene <- sel
+        # Clear the jumped default only on a real user selection (a
+        # different row); the programmatic echo selects the same gene.
+        if (!identical(sel, sn_vta_vars$jump_landed)) sn_vta_vars$jump_landed <- NULL
       }
 
       sn_vta_vars$counts <- read_csv(paste0("input/sn_vta/da_counts_per_gene/", sn_vta_vars$gene, ".csv"))

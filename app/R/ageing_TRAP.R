@@ -2,6 +2,7 @@ ageing_TRAP_UI <- function(id) {
   ns <- NS(id)
   tabPanel(
     "Ageing in Dopaminergic Neurons",
+    value = "ageing_TRAP",
     titlePanel(h1("Ageing in Dopaminergic Neurons", align = 'center')),
     br(),
     fluidRow(column(
@@ -64,12 +65,33 @@ ageing_TRAP_UI <- function(id) {
   )
 }
 
-ageing_TRAP_SERVER <- function(id) {
+ageing_TRAP_SERVER <- function(id, gene_selection) {
   moduleServer(id, function(input, output, session) {
     # namespace ----
     ns <- session$ns
     
-    ageing_TRAP_vars <- reactiveValues()
+        ageing_TRAP_vars <- reactiveValues()
+    
+    ageing_TRAP_proxy <- dataTableProxy("table")
+    
+    # Phase C (ADR-0003): arriving selection from Gene Query. One-shot; with
+    # no arriving selection the observer never fires and the tab behaves
+    # exactly as before.
+    observeEvent(gene_selection$arriving, {
+      req(gene_selection$arriving)
+      gene <- gene_selection$arriving$gene
+      row <- which(ageing_TRAP_vars$table$Gene == gene)
+      if (length(row) == 0) return()
+      # The arrived gene becomes the tab's default (jump_landed; cleared when
+      # the user picks a row) so the table's first-render selection event
+      # (rows_selected = NULL after the tab is shown) cannot reset to row 1.
+      ageing_TRAP_vars$jump_landed <- gene
+      ageing_TRAP_vars$selected_gene <- gene
+      ageing_TRAP_vars$counts <-
+        readRDS(paste0("input/ageing/", gene, ".rds")) %>%
+        mutate(Age = factor(Age, levels = c("YOUNG", "OLD")))
+      selectRows(ageing_TRAP_proxy, row[1])
+    })
     
     ageing_TRAP_vars$table <-
       readRDS("input/startup/MB_AGE_META.rds")
@@ -91,11 +113,21 @@ ageing_TRAP_SERVER <- function(id) {
     observeEvent(input$table_rows_selected, {
       req(ageing_TRAP_vars$table)
       if (is.null(input$table_rows_selected)) {
+        if (!is.null(ageing_TRAP_vars$jump_landed)) {
+          # First-render event: the DT is initialized now, so re-issue the
+          # row selection that was dropped while the tab was still hidden.
+          row <- which(ageing_TRAP_vars$table$Gene == ageing_TRAP_vars$jump_landed)
+          if (length(row) > 0) selectRows(ageing_TRAP_proxy, row[1])
+          return()
+        }
         ageing_TRAP_vars$selected_gene <-
           ageing_TRAP_vars$table[1, ] %>% pull(Gene)
       } else {
-        ageing_TRAP_vars$selected_gene <-
-          ageing_TRAP_vars$table[input$table_rows_selected,]$Gene
+        sel <- ageing_TRAP_vars$table[input$table_rows_selected,]$Gene
+        ageing_TRAP_vars$selected_gene <- sel
+        # Clear the jumped default only on a real user selection (a
+        # different row); the programmatic echo selects the same gene.
+        if (!identical(sel, ageing_TRAP_vars$jump_landed)) ageing_TRAP_vars$jump_landed <- NULL
       }
       ageing_TRAP_vars$counts <-
         readRDS(paste0("input/ageing/",

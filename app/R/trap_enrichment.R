@@ -1,6 +1,7 @@
 trap_enrichment_UI <- function(id) {
   ns <- NS(id)
   tabPanel("TRAP Enrichment in Dopaminergic Neurons",
+           value = "trap_enrichment",
            titlePanel(h1("TRAP Enrichment in Dopaminergic Neurons", align = 'center')),
            br(),
            fluidRow(
@@ -64,12 +65,32 @@ trap_enrichment_UI <- function(id) {
 
 }
 
-trap_enrichment_SERVER <- function(id) {
+trap_enrichment_SERVER <- function(id, gene_selection) {
   moduleServer(id, function(input, output, session) {
     # namespace ----
     ns <- session$ns
     
-    trap_enrichment_vars <- reactiveValues()
+            trap_enrichment_vars <- reactiveValues()
+    
+    trap_enrichment_proxy <- dataTableProxy("enrichment_table")
+    
+    # Phase C (ADR-0003): arriving selection from Gene Query. One-shot; with
+    # no arriving selection the observer never fires and the tab behaves
+    # exactly as before. Only genes in the enrichment meta-table are acted
+    # on (the MA plot may show a subset filtered by the show-unchanged /
+    # show-depleted switches).
+    observeEvent(gene_selection$arriving, {
+      req(gene_selection$arriving)
+      gene <- gene_selection$arriving$gene
+      if (!(gene %in% MB_FRACTION_META$Gene)) return()
+      # The arrived gene becomes the tab's default (jump_landed; cleared when
+      # the user picks a row) so the table's first-render selection event
+      # (rows_selected = NULL after the tab is shown) cannot reset to row 1.
+      trap_enrichment_vars$jump_landed <- gene
+      trap_enrichment_vars$selected_gene <- gene
+      trap_enrichment_vars$highlight_markers <- trap_enrichment_vars$plot_data %>%
+        filter(external_gene_name == gene)
+    })
     
     MB_FRACTION_META <-
       readRDS("input/startup/MB_FRACTION_META.rds")
@@ -125,10 +146,22 @@ trap_enrichment_SERVER <- function(id) {
       req(MB_FRACTION_META)
       current_table <- table_data()
       if (is.null(input$enrichment_table_rows_selected)) {
+        if (!is.null(trap_enrichment_vars$jump_landed)) {
+          # First-render event: the DT is initialized now, so re-issue the
+          # row selection that was dropped while the tab was still hidden
+          # (only when the gene is in the currently shown table).
+          row <- which(current_table$Gene == trap_enrichment_vars$jump_landed)
+          if (length(row) > 0) selectRows(trap_enrichment_proxy, row[1])
+          return()
+        }
         trap_enrichment_vars$selected_gene <- current_table[1,] %>% pull(Gene)
-      } else if (input$enrichment_table_rows_selected <= nrow(current_table)) {
-        trap_enrichment_vars$selected_gene <-
-          current_table[input$enrichment_table_rows_selected, ]$Gene
+      } else if (!is.na(input$enrichment_table_rows_selected) &&
+                 input$enrichment_table_rows_selected <= nrow(current_table)) {
+        sel <- current_table[input$enrichment_table_rows_selected, ]$Gene
+        trap_enrichment_vars$selected_gene <- sel
+        # Clear the jumped default only on a real user selection (a
+        # different row); the programmatic echo selects the same gene.
+        if (!identical(sel, trap_enrichment_vars$jump_landed)) trap_enrichment_vars$jump_landed <- NULL
       }
       trap_enrichment_vars$highlight_markers <- trap_enrichment_vars$plot_data %>%
         filter(external_gene_name == trap_enrichment_vars$selected_gene)
