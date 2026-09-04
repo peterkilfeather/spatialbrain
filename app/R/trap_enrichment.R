@@ -41,7 +41,7 @@ trap_enrichment_UI <- function(id) {
                     style = 'border-right: 1px solid'
                     ), 
              column(6, 
-                    h4("Select genes above to display information"),
+                    h4("Select a gene to highlight it on the plot"),
                     DT::dataTableOutput(ns("enrichment_table")),
                     
                     ), 

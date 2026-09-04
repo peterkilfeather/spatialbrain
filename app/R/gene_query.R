@@ -3,7 +3,7 @@
 # Gene-centric hub (Phase C, ticket 6): a case-insensitive autocomplete over
 # the union of the five gene-centric analyses (the 32 cell-type marker tables
 # included); a summary table with one row per analysis (Cell Type Markers,
-# SN/VTA Region Markers, TRAP Enrichment, Ageing, Alternative Splicing)
+# SN/VTA Markers, TRAP Enrichment, Ageing, Alternative Splicing)
 # showing status and key statistics (LFC / FDR-P where available --
 # Alternative Splicing reports FDR-P only) and "Not tested" for absent
 # analyses; and a per-row jump that writes an arriving selection to the
@@ -17,7 +17,7 @@
 # whether the analysis reports an LFC (Alternative Splicing does not).
 GENE_QUERY_ANALYSES <- tibble::tibble(
   analysis_id = c("markers", "sn_vta", "trap", "ageing", "splicing"),
-  analysis = c("Cell Type Markers", "SN/VTA Region Markers", "TRAP Enrichment",
+  analysis = c("Cell Type Markers", "SN/VTA Markers", "TRAP Enrichment",
                "Ageing", "Alternative Splicing"),
   tab_value = c("spatial_markers", "sn_vta", "trap_enrichment", "ageing_TRAP",
                 "splicing"),

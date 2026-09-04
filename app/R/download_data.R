@@ -1,7 +1,7 @@
 # Download Data --------------------------------------------------------------
 #
 # One-click ZIP of the five analysis tables (TRAP Enrichment, Ageing,
-# Alternative Splicing, SN/VTA Region Markers, Cell Type Markers -- the
+# Alternative Splicing, SN/VTA Markers, Cell Type Markers -- the
 # latter as the 32 per-cell-type tables) as readable CSVs with the canonical
 # columns shown in the app (Gene / LFC / FDR-P; Alternative Splicing has no
 # LFC), plus the raw-data links from the paper's Data and code availability
@@ -29,7 +29,7 @@ download_zip_entries <- function(cell_type_names_rds = "input/startup/cell_type_
   entries <- c("TRAP Enrichment.csv",
                "Ageing.csv",
                "Alternative Splicing.csv",
-               "SN-VTA Region Markers.csv",
+               "SN-VTA Markers.csv",
                markers)
   # Key the marker entries by internal cell-type symbol (the same key
   # build_gene_index and the marker file names use) so writers pair each
@@ -144,8 +144,8 @@ download_data_UI <- function(id) {
            fluidRow(
              column(5,
                     offset = 1,
-                    h4("All analysis tables, one click"),
-                    p("Download the five analysis tables as readable CSVs with the columns shown in the app (Gene / LFC / FDR-P): TRAP Enrichment, Ageing, Alternative Splicing, SN/VTA Region Markers, and Cell Type Markers as the 32 per-cell-type tables."),
+                    h4("All analysis tables in one ZIP"),
+                    p("Download the five analysis tables as readable CSVs with the columns shown in the app (Gene / LFC / FDR-P): TRAP Enrichment, Ageing, Alternative Splicing, SN/VTA Markers, and Cell Type Markers as the 32 per-cell-type tables."),
                     p(class = 'text-center', downloadButton(
                       ns('download_zip'), 'Download All Data (ZIP)'
                     )),
@@ -155,7 +155,7 @@ download_data_UI <- function(id) {
                       tags$li("TRAP Enrichment (LFC vs TOTAL)"),
                       tags$li("Ageing (LFC, OLD vs YOUNG)"),
                       tags$li("Alternative Splicing (FDR-P only)"),
-                      tags$li("SN/VTA Region Markers (LFC, SN vs VTA)"),
+                      tags$li("SN/VTA Markers (LFC, SN vs VTA)"),
                       tags$li("Cell Type Markers: 32 per-cell-type tables, one CSV per cell type")
                     ),
                     style = 'border-right: 1px solid'
@@ -168,11 +168,11 @@ download_data_UI <- function(id) {
                         tags$li(tags$a(href = download_raw_links$url[i],
                                        target = "_blank",
                                        download_raw_links$label[i]),
-                                " — ", download_raw_links$note[i])
+                                ": ", download_raw_links$note[i])
                       })
                     ),
                     p(class = "text-muted",
-                      "The Data Availability statement and the Key Resources table print different DOIs for the CASR ICC images: 10.5281/zenodo.10476098 (Data Availability) and 10.5281/zenodo.10476097 (Key Resources). Only the Data Availability DOI resolves; it is the one linked above (choice documented in ADR-0004)."),
+                      "The Data Availability statement and the Key Resources table print different DOIs for the CASR ICC images: 10.5281/zenodo.10476098 (Data Availability) and 10.5281/zenodo.10476097 (Key Resources). Only the Data Availability DOI resolves; it is the one linked above."),
                     p(class = "text-muted",
                       "All processed data, including results of all analyses, are provided at spatialbrain.org.")
              )

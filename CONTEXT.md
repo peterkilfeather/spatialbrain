@@ -1,6 +1,6 @@
 # SpatialBrain
 
-A web portal for exploring mouse midbrain gene expression from the Wade-Martins Laboratory of Molecular Neurodegeneration (Kilfeather, Khoo, et al., 2023). Covers spatial transcriptomics and TRAP assays, focused on dopaminergic neurons of the substantia nigra and ventral tegmental area, including ageing.
+A web portal for exploring mouse midbrain gene expression from the Wade-Martins Laboratory of Molecular Neurodegeneration (Kilfeather, Khoo, et al., 2024, Cell Reports 43:113784). Covers spatial transcriptomics and TRAP assays, focused on dopaminergic neurons of the substantia nigra and ventral tegmental area, including ageing.
 
 ## Language
 
@@ -56,10 +56,13 @@ _Avoid_: aging
 **Cell type numbers**:
 The number of cells of each annotated cell type, plotted against age.
 
+**Analysis table**:
+One of the five downloadable result tables on the Download Data tab: TRAP Enrichment, Ageing, Alternative Splicing, SN/VTA Markers, or Cell Type Markers (the latter as 32 per-cell-type tables).
+
 ### Measures
 
 **LFC**:
-Log2 fold-change in abundance between two sample groups. The baseline depends on the analysis: TRAP vs TOTAL for enrichment, SN vs VTA for region markers, OLD vs YOUNG for ageing.
+Log2 fold-change in abundance between two sample groups. The baseline depends on the analysis: TRAP vs TOTAL for enrichment, SN vs VTA for SN/VTA Markers, OLD vs YOUNG for ageing.
 
 **FDR-P**:
 P value adjusted for multiple comparisons using the Benjamini–Hochberg method.
