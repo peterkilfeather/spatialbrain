@@ -26,11 +26,18 @@ download_zip_entries <- function(cell_type_names_rds = "input/startup/cell_type_
   markers <- paste0("Cell Type Markers - ",
                     gsub("[:/]+ *", " - ", names(cell_type_names)),
                     ".csv")
-  c("TRAP Enrichment.csv",
-    "Ageing.csv",
-    "Alternative Splicing.csv",
-    "SN-VTA Region Markers.csv",
-    markers)
+  entries <- c("TRAP Enrichment.csv",
+               "Ageing.csv",
+               "Alternative Splicing.csv",
+               "SN-VTA Region Markers.csv",
+               markers)
+  # Key the marker entries by internal cell-type symbol (the same key
+  # build_gene_index and the marker file names use) so writers pair each
+  # table to its entry by key, never by position: names(cell_type_names)
+  # order and list.files order are independent sequences that happen to
+  # coincide today.
+  names(entries)[5:length(entries)] <- unname(cell_type_names)
+  entries
 }
 
 # The five analysis tables with the canonical columns shown in the app
@@ -67,8 +74,16 @@ download_write_csvs <- function(dir,
   write_csv(tables$ageing, file.path(dir, entries[2]))
   write_csv(tables$splicing, file.path(dir, entries[3]))
   write_csv(tables$sn_vta, file.path(dir, entries[4]))
-  mapply(function(t, e) write_csv(t, file.path(dir, e)),
-         tables$markers, entries[5:length(entries)])
+  # Pair each marker table to its entry by symbol key (see
+  # download_zip_entries); an unknown or missing key fails loudly instead
+  # of silently writing a table under the wrong cell-type name.
+  marker_entries <- entries[sub("\\.rds$", "", names(tables$markers))]
+  stopifnot(length(marker_entries) == length(tables$markers),
+            !anyNA(marker_entries),
+            !anyDuplicated(marker_entries))
+  for (i in seq_along(tables$markers)) {
+    write_csv(tables$markers[[i]], file.path(dir, marker_entries[[i]]))
+  }
   entries
 }
 
