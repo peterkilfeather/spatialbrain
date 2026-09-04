@@ -165,10 +165,10 @@ download_data_UI <- function(id) {
                     p("Links from the paper's Data and code availability statement (Kilfeather, Khoo, et al., 2024, ", tags$a(href = "https://doi.org/10.1016/j.celrep.2024.113784", target = "_blank", "Cell Reports 43:113784"), ")."),
                     tags$ul(
                       lapply(seq_len(nrow(download_raw_links)), function(i) {
-                        tags$li(tags$a(href = download_raw_links$url[i],
-                                       target = "_blank",
-                                       download_raw_links$label[i]),
-                                ": ", download_raw_links$note[i])
+                        tags$li(HTML(sprintf('<a href="%s" target="_blank">%s</a>: %s',
+                                             download_raw_links$url[i],
+                                             download_raw_links$label[i],
+                                             download_raw_links$note[i])))
                       })
                     ),
                     p(class = "text-muted",
