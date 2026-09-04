@@ -50,3 +50,52 @@ under the app's Bootstrap 3 theme, `updateNavbarPage()` cannot select tabs
 inside `navbarMenu()` dropdowns (the tab-input binding matches top-level
 anchors only), so switching is driven by a custom message handler registered
 in `app.R`'s `<head>` on `#main_nav`.
+
+## Implemented contract (Phase C-2)
+
+**Store shape** — `arriving` gains a `nonce` field (the C-1 shape above is
+superseded):
+
+```r
+list(gene = "<canonical symbol>", cell_type = "<internal symbol>" | NULL,
+     nonce = <integer>)
+```
+
+`nonce` increments on every jump. `reactiveValues` skips re-assignment of
+identical values, so without it a second jump to the same gene (same
+`gene` + `cell_type`) would never fire the modules' observers. Analysis
+modules read only `gene` and `cell_type`; the nonce is otherwise invisible
+to them.
+
+**Gene keys** — Gene Query builds a session gene index once at session
+start (`build_gene_index()`, `app/R/gene_query.R`) from the five analysis
+sources, the 32 cell-type marker tables included: one row per gene-analysis
+match, keyed by `toupper(gene)` with the canonical stored case. Symbols are
+written in a single case across all five sources (verified at build), so the
+delivered `gene` is canonical and exact-match lookups work in every module.
+Autocomplete (`selectizeInput`, server-side) matches case-insensitively —
+shiny's `selectizeJSON` search lowercases query and options — so `slc6a3`,
+`MT-ND6` and `a230050p20rik` all resolve. Duplicate rows per source are
+removed at load (`distinct(Gene)`); the union is 23,781 symbols.
+
+**Summary contract** — `gene_query_summary(index, gene)` returns exactly
+five rows, one per analysis in display order: Cell Type Markers, SN/VTA
+Region Markers, TRAP Enrichment, Ageing, Alternative Splicing. Status is
+"Tested" or "Not tested" (gene absent from that analysis). Statistics: LFC
+and FDR-P where the analysis reports them; Alternative Splicing shows
+FDR-P only (its LFC cell renders "—"). A gene that is a marker of several
+cell types lists every matching cell type (public names, `cell_type_names`
+order) and shows the first matching cell type's statistics — the same cell type the jump delivers. Each tested row carries a View button; "Not
+tested" rows carry none (there is nothing to jump to).
+
+**Jump** — the View button writes a fresh `arriving` selection
+(canonical gene; for the Cell Type Markers row, the first matching cell
+type in `cell_type_names` order — the same scan the module falls back to)
+and calls `switch_navbar_tab(session, <tab value>)`. Buttons write the
+namespaced `jump` input via `Shiny.setInputValue(..., {priority: 'event'})`
+so repeat jumps to the same row still fire. A jump to an analysis that does
+not contain the gene is impossible from the UI ("Not tested" rows carry no
+button); the modules' absent-gene guards make it a harmless no-op anyway.
+Direct per-tab
+use is unaffected: the store carries only arriving selections and modules
+only act on them.
