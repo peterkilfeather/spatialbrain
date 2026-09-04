@@ -90,6 +90,16 @@ trap_enrichment_SERVER <- function(id, gene_selection) {
       trap_enrichment_vars$selected_gene <- gene
       trap_enrichment_vars$highlight_markers <- trap_enrichment_vars$plot_data %>%
         filter(external_gene_name == gene)
+      # Re-select the gene's row in the currently shown table (read with
+      # isolate: the observer is one-shot and must not track the brush
+      # filter), so a repeat jump to an already-initialised tab keeps the
+      # DT row selection in step with the MA-plot highlight. The first-visit
+      # path is handled by the first-render re-issue in the rows_selected
+      # observer below (the proxy is not initialised yet here, so this
+      # selectRows is a silent no-op then). A gene absent from the current
+      # (brush-filtered) table selects nothing.
+      row <- which(isolate(table_data())$Gene == gene)
+      if (length(row) > 0) selectRows(trap_enrichment_proxy, row[1])
     })
     
     MB_FRACTION_META <-

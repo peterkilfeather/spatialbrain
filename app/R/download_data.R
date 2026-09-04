@@ -59,9 +59,12 @@ download_analysis_tables <- function(marker_dir = "input/markers/cell_types",
                      col_names = c("Gene", "LFC", "FDR-P"),
                      skip = 1,
                      show_col_types = FALSE)
+  # The Cell Type Markers tab displays each table arranged by desc(LFC);
+  # write the CSVs in the same order so the ZIP matches the tables as
+  # displayed (ticket 8). Values are untouched.
   markers <- list.files(marker_dir, pattern = "\\.rds$", full.names = TRUE) %>%
     setNames(basename(.)) %>%
-    lapply(readRDS)
+    lapply(function(path) readRDS(path) %>% arrange(desc(LFC)))
   list(trap = trap, ageing = ageing, splicing = splicing,
        sn_vta = sn_vta, markers = markers)
 }
