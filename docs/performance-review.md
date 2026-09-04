@@ -38,7 +38,7 @@ Container restart → first session also ≤ 3.42 s (host page cache survives re
 
 - **Phase A — Cloudflare HTML cache rule ✅ done 2026-08-20**: cache rule on `spatialbrain.org` + `www.spatialbrain.org` root path — cache eligibility on, edge TTL 300 s (200 only), browser TTL 60 s. Result: root HTML TTFB 1.2 s → ~35 ms (`cf-cache-status: HIT`); content verified identical, no cookies. Rule id `c5858fc9`; delete via Cloudflare → Rules → Cache Rules. Guard held: no dynamic content in HTML before enabling; re-check after any future UI change (browser TTL 60 s bounds update propagation).
 - **Phase B — Repo hygiene (agent-executable after approval)**: remove `renv/`, `renv.lock`, `.Rprofile`; delete unreferenced `www/magick`, `www/spatial.gif`, `input/startup/spatial.gif`, orphan `app/trap_enrichment.R`, dead `renderImage` output in `home.R`; strip commented-out blocks in `home.R`. Behavior-neutral; commit separately from any other work.
-- **Phase C — Deploy**: rebuild `spatialbrain:latest` from repo, restart container, re-measure TTI ≤ 5 s. Note: image is ~11 GB; build/push time is a deploy-time cost, not user-facing.
+- **Phase C — Deploy ✅ done 2026-08-20 (first, #3), re-verified 2026-09-04 (#9)**: rebuilt `spatialbrain:latest` from repo, container recreated, fresh-session TTI ≤ 3.23 s (2026-08-20) and 1.99 s (2026-09-04, functionality-review Phase A/B/C build), HTML cache guard intact on both. Note: image is ~11 GB; build/push time is a deploy-time cost, not user-facing.
 - **Non-actions (documented, not scheduled)**: package slimming, lazy module init, per-gene data format changes (fst/parquet), monitor identification.
 
 ## Risks
