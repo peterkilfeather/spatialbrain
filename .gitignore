@@ -3,3 +3,8 @@
 .RData
 .Ruserdata
 .playwright-mcp/
+
+# Agent context files (local only)
+CLAUDE.md
+AGENTS.md
+docs/
