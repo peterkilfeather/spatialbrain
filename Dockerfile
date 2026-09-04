@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # install2.r is provided by rocker images
 RUN install2.r --error --skipinstalled \
     shiny waiter shinycssloaders shinythemes tidyverse DT ggsci cowplot \
-    shinyWidgets ggrepel plotly BiocManager
+    shinyWidgets ggrepel plotly BiocManager zip
 
 # Ensure BioC repos are available (if you later add BioC pkgs)
 RUN R -q -e "options(repos = BiocManager::repositories()); invisible(TRUE)"
